@@ -1,0 +1,4 @@
+interface:
+  display_name: "Consider Companies"
+  short_description: "Stage organization-first intake"
+  default_prompt: "Use $consider-companies for company URLs, company LinkedIn pages, docs/GitHub orgs, or organization-first intake that may create a new tracked company, then finalize approved canon and hand off to $cache-companies."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Consider People"
+  short_description: "Stage person-first intake"
+  default_prompt: "Use $consider-people for LinkedIn profiles, LinkedIn screenshots or HTML/MHTML exports, Added/Accepted evidence, or sent/received-message intake that may create a new tracked person."

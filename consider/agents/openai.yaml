@@ -1,4 +1,0 @@
-interface:
-  display_name: "Consider"
-  short_description: "Route entities into consider tasks"
-  default_prompt: "Use $consider to stage new people, companies, or mixed entity inputs through the right consider workflow."

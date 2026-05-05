@@ -1,0 +1,4 @@
+interface:
+  display_name: "Companies List"
+  short_description: "Expand company selectors into a concrete list"
+  default_prompt: "Use $companies-list to resolve company selectors, subset expressions, or <...> company prompts into a concrete tracked-company list."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cache People"
+  short_description: "Stub people-cache entrypoint"
+  default_prompt: "Use $cache-people only for explicitly requested person-side cache work; otherwise redirect to $consider-people or $cache-companies as appropriate."

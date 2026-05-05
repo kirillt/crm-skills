@@ -1,0 +1,6 @@
+[submodule "task"]
+	path = task
+	url = git@github.com:kirillt/task-skills.git
+[submodule "meta"]
+	path = meta
+	url = git@github.com:kirillt/meta-skills.git

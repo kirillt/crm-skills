@@ -1,0 +1,4 @@
+interface:
+  display_name: "Consider"
+  short_description: "Dispatch mixed or unclear entity intake"
+  default_prompt: "Use $consider only when new-entity intake is mixed or unclear, then hand off to $consider-people and/or $consider-companies."

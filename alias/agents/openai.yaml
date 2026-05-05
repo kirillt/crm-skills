@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alias"
+  short_description: "Resolve or edit aliases"
+  default_prompt: "Use $alias when the user explicitly wants to look up, add, update, or remove an alias mapping in aliases.json."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cache"
+  short_description: "Dispatch cache work"
+  default_prompt: "Use $cache only when cache work is mixed or unclear, then hand off to $cache-companies and/or $cache-people."
