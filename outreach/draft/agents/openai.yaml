@@ -1,0 +1,4 @@
+interface:
+  display_name: "Outreach Draft"
+  short_description: "Draft tailored outreach messages"
+  default_prompt: "Use $outreach-draft when the user wants a message drafted for one or more persisted or same-session-considered people, always read state/outreach/style.json before returning the final wording, and never mutate that style store during drafting."

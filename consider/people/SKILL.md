@@ -33,8 +33,8 @@ High-level question:
 
 This workflow:
 1. stages new/targeted person-candidate records under `scratch/data/people/consider/`,
-2. resolves every current employer against tracked company data,
-3. runs `$consider-companies` for each untracked current employer before any canonical company/person promotion,
+2. resolves every active current employer against tracked company data,
+3. runs `$consider-companies` for each unique untracked active current employer before any canonical company/person promotion, in the same run,
 4. evaluates each person's outreach usefulness using the LinkedIn-style buyer/partner/action framework,
 5. promotes approved people into canonical person tracking where appropriate,
 6. runs `$cache-people` only after canonical person persistence in this workflow,
@@ -67,7 +67,7 @@ Use best judgement for ambiguous text:
    - sent/received-message evidence routes through this workflow
    - screenshot-plus-URL evidence routes through this workflow
 5. If a LinkedIn screenshot is provided without the profile URL, ask for the URL in the same reply and still treat the case as person consideration.
-6. If a person's employer is not already tracked, pass that employer through `$consider-companies` rather than creating company canon directly.
+6. If any of a person's active current employers are not already tracked, pass each untracked active employer through `$consider-companies` rather than creating company canon directly.
 
 ## Procedure
 
@@ -83,40 +83,52 @@ Use best judgement for ambiguous text:
 2. Stage the explicit person candidates only.
 3. Extract profile evidence for each staged person candidate.
    - Use the user-provided links/screenshots/exports first.
-   - Do brief online research for the current employer and any materially relevant prior employers when the profile alone does not give enough business context.
+   - Do brief online research for every active current employer and any materially relevant prior employers when the profile alone does not give enough business context.
    - Record only source-backed fields:
      - full name
      - public profile URL(s)
-     - current role
-     - current employer
-     - current-role start month/year when shown
+     - active current role(s)
+     - active current employer(s)
+     - current-role start month/year when shown for each active role
      - materially relevant prior employers / prior roles
      - location and alternative communication languages when defensible
    - If a profile is too cropped to identify the role/company reliably, ask for an additional screenshot showing the top card plus the current-role block.
    - If the full name is not visible, do not substitute a title like `COO` into the canonical target; ask for a clearer screenshot instead.
    - Keep screenshots and OCR-like extracts in scratch only, never in canonical entities.
-4. Resolve the current employer for each staged person candidate.
-   - If the employer is already tracked:
+4. Resolve every active current employer for each staged person candidate.
+   - If an active employer is already tracked:
      - use the canonical `companies/*.json` entity plus `cache/companies/*.json` to inform the person review
-     - if the company cache is missing/stale/invalid, block on refreshing it before final person promotion
-   - If the employer is not tracked:
-     - if the employer looks relevant enough to become a tracked company, call `$consider-companies` once per unique untracked employer
+     - if that company cache is missing/stale/invalid, block on refreshing it before final person promotion
+     - surface the tracked company's current `relevance` in the people review table under `Company Relevance`
+   - If an active employer is not tracked:
+     - if the employer looks relevant enough to become a tracked company, call `$consider-companies` once per unique untracked active employer
      - do not create canonical company or cache files directly from this workflow
      - wait for the company-consider approval outcome before promoting people tied to that employer
+     - surface that same-run company-consider result in the people review table under `Company Relevance`, including:
+       - the employer name
+       - the staged company relevance
+       - the company status (`under consideration`, `approved this run`, `blocked`, or `removed`)
+       - the person whose profile triggered that company-consider handoff
+   - If multiple active current employers are shown concurrently:
+     - resolve all of them in the same run; do not stop after the top-card role or the most recent active company
+     - treat any unresolved or unapproved active employer as a blocker unless the user explicitly approves persisting the person without that employer link
    - For materially relevant prior employers:
      - use brief research to improve the person's usefulness review
      - do not silently create canonical company tracking from prior-employer context alone
-   - If the employer remains unresolved or unapproved:
+   - If any active current employer remains unresolved or unapproved:
      - keep the person staged
      - do not silently create canonical company tracking
-     - only persist the person independently if the user explicitly approves doing so without a tracked employer link
+     - only persist the person independently if the user explicitly approves doing so without the unresolved employer link(s)
 5. Evaluate outreach usefulness for each staged person candidate.
    - Classify the track:
      - `buyer` if the person works at a protocol/app/exchange/infra team that plausibly buys security work
      - `partner` if the person works at a security firm, dev shop, recruiter/talent agency, advisory, or similar service provider that could refer/subcontract work
      - `unknown` otherwise
-   - If at least one profile is `partner` and the run has not explicitly specified how to handle partners, stop and ask one clarifying question:
-     - `For this run, should potential partners be treated as "write immediately" or "save for future"?`
+   - Evaluate every profile individually; do not ask for a batch-level handling policy for buyers or partners.
+   - Use the track to set the business goal for that person's recommendation:
+     - `buyer`: the goal is to sell security/design/review services directly
+     - `partner`: the goal is to improve mutual deal flow through referrals, subcontracting, overflow help, or adjacent collaboration
+     - `unknown`: the goal is to judge whether any outreach path is worth attention yet
    - Choose the recommended action:
      - `write immediately`
      - `send connection request and save for future case`
@@ -126,16 +138,20 @@ Use best judgement for ambiguous text:
      - `chance (6 months)`
    - Use observable signals only:
      - the person’s current role/seniority
-     - the employer’s tracked cache metrics (`summary`, `importance`, `relevance`, `temperature`, `chance_next`, `chance_6m`)
+     - the active employer set's tracked cache metrics (`summary`, `importance`, `relevance`, `temperature`, `chance_next`, `chance_6m`)
      - prior employers when they materially change business usefulness
      - existing repo communication/context if the person is already tracked
+   - Reflect the goal-specific reasoning in the row's `Why` field:
+     - for `buyer`, explain why the person looks promising or weak as a direct service buyer
+     - for `partner`, explain why the person looks promising or weak for reciprocal deal-flow improvement
    - Keep an internal person-relevance judgement for persistence decisions:
-     - if the person is not useful to outreach directly but works at a relevant company, use `1%` as the floor
+     - if the person is not useful to outreach directly but works at at least one relevant active company, use `1%` as the floor
      - if the person is truly `0%`, do **not** persist the profile canonically
 6. Show the staged review batch and stop for approval.
    - Always render the staged review in chat as a markdown table that includes the current suggestion for every candidate in the batch, even for single-item batches or when surrounding narrative context is also provided.
    - The table must include a `Blockers` column. Use `none` only when there is no unresolved blocker.
    - If `$consider-companies` was invoked as a sub-step for any employer in the batch, the people review table must reflect that dependency explicitly instead of pretending the employer is fully approved already.
+   - The table must include a `Company Relevance` column for every candidate.
 7. Commit the approved batch immediately.
    - `promote`:
      - create/update the canonical person state as approved
@@ -160,31 +176,36 @@ Use best judgement for ambiguous text:
 - This workflow must produce a reviewable batch report before canonical changes.
 - The staged review report shown in chat must always include a table with the current suggestion for every candidate in the batch.
 - Every considered person must be grounded in explicit profile evidence; do not guess missing current employer/role details.
-- Do brief online research for the current employer and any materially relevant prior employers when needed to evaluate the candidate cleanly.
-- Every untracked current employer must go through `$consider-companies` before canonical company/person promotion.
+- Do brief online research for every active current employer and any materially relevant prior employers when needed to evaluate the candidate cleanly.
+- Every untracked active current employer must go through `$consider-companies` before canonical company/person promotion.
 - Use tracked company cache data whenever the employer already exists canonically.
 - Do not silently create canonical company tracking from a people-only workflow, whether the signal comes from the current employer or a prior employer.
 - All unresolved blockers must be shown in the staged review table's `Blockers` column. Do not present a blocked candidate as unqualified `promote`.
 - `Relevance: 0%` means the profile must not be persisted canonically.
-- `Relevance: 1%` is the floor for “person not directly useful, but current employer is relevant.”
+- `Relevance: 1%` is the floor for “person not directly useful, but at least one active current employer is relevant.”
 - New canonical company creation is never allowed directly from this workflow; employer promotion must happen through approved `$consider-companies`.
 - Use `$cache-people` only when this workflow actually persisted canonical person entities.
 - Never create a brand-new `people/*.json` directly from first-touch intake outside this staged workflow.
 - Never bypass staged review because the evidence feels “good enough”.
 - Do not edit `aliases.json` unless the user explicitly asked for alias work.
 - A direct profile/contact surface is required before clean canonical person registration; evidence-only cases still belong in staged consideration first.
+- When multiple concurrent active companies are shown, resolve all of them in the same run before person promotion unless the user explicitly approves a narrower persistence decision.
+- Do not ask for a batch-level handling policy for buyers or partners; evaluate each profile separately and recommend the best action for that individual's track and business goal.
 
 ## Batch report
 
 Use a table with:
 
-`Person` | `Current role` | `Company` | `Company status` | `Track` | `Recommended action` | `Chance (next week)` | `Chance (6 months)` | `Suggestion` | `Blockers` | `Why`
+`Person` | `Current role(s)` | `Company / companies` | `Company status` | `Company Relevance` | `Track` | `Recommended action` | `Chance (next week)` | `Chance (6 months)` | `Suggestion` | `Blockers` | `Why`
 
 Where:
 - `Person` is the staged candidate's full name
-- `Current role` is the current role title
-- `Company` is the resolved current employer
-- `Company status` is one of `tracked`, `under consideration`, `untracked`, `blocked`
+- `Current role(s)` lists all active current roles shown by the evidence; use a concise semicolon-separated summary when there are several
+- `Company / companies` lists all resolved active current employers for the person; use a concise semicolon-separated summary when there are several
+- `Company status` summarizes the active employer set using per-company labels such as `tracked`, `under consideration`, `untracked`, or `blocked`
+- `Company Relevance` is required for every row:
+  - for tracked employers, show each company's current relevance
+  - for employers sent through `$consider-companies` in the same run, show each staged company relevance plus the same-run handoff result and the triggering person
 - `Track` is one of `buyer`, `partner`, `unknown`
 - `Recommended action` is one of `write immediately`, `send connection request and save for future case`, or `skip, don't spend time`
 - `Blockers` lists unresolved issues that block or condition canonical changes; use `none` only when no blocker remains

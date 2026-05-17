@@ -63,7 +63,8 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 URL_RE = re.compile(r"^https?://\S+$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 ROLE_RE = re.compile(r"^[A-Z0-9_]+$")
-TELEGRAM_RE = re.compile(r"^@[A-Za-z0-9_]{5,32}$")
+TELEGRAM_USERNAME_RE = re.compile(r"^@[A-Za-z0-9_]{5,32}$")
+TELEGRAM_ID_RE = re.compile(r"^[0-9]{5,20}$")
 
 
 def err(errors, path, message):
@@ -202,8 +203,10 @@ def validate_person(path: Path, data, errors, warnings):
             surfaces += 1
         if field == "linkedin" and value and not URL_RE.fullmatch(value):
             err(errors, path, "`linkedin` must be an http(s) URL when non-empty")
-        if field == "telegram" and value and not TELEGRAM_RE.fullmatch(value):
-            err(errors, path, "`telegram` must be a canonical `@username` when non-empty")
+        if field == "telegram" and value and not (
+            TELEGRAM_USERNAME_RE.fullmatch(value) or TELEGRAM_ID_RE.fullmatch(value)
+        ):
+            err(errors, path, "`telegram` must be a canonical `@username` or raw numeric Telegram ID when non-empty")
         if field == "twitter" and value and not URL_RE.fullmatch(value):
             err(errors, path, "`twitter` must be an http(s) URL when non-empty")
         if field == "email" and value and not EMAIL_RE.fullmatch(value):
