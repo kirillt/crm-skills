@@ -11,6 +11,7 @@ Use this as the thin top-level manual dispatcher for new-entity intake when the 
 
 Keep detailed people rules in `$consider-people`.
 Keep detailed company rules in `$consider-companies`.
+Those downstream consider skills use `$batch` for the generic scratch-task batch loop.
 
 ## When To Use
 

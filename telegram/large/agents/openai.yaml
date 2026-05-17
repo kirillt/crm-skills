@@ -1,0 +1,4 @@
+interface:
+  display_name: "Telegram Large"
+  short_description: "Scrape and discover large Telegram chats"
+  default_prompt: "Use $telegram-large-chats with $batch to start a fresh large-chat batch run from state/telegram/last-sync.json; read config/telegram/main.json and config/telegram/large-chats.json; sync active targets with .agents/skills/telegram/scripts/sync.py using --since <large-chats-sync>; use .agents/skills/telegram/scripts/list.py large --since <large-chats-sync> for discovery; extract distinct business insights and discovery suggestions as the batch items; show mandatory batch tables over those insight items rather than raw channels; apply approved discovery actions promote/save for future/ignore; and only advance the large-chat sync state after the run is fully applied."

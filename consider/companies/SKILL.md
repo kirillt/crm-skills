@@ -1,6 +1,6 @@
 ---
 name: consider-companies
-description: Stage organization-first intake through the company consideration workflow. Use when the input contains company/homepage URLs, LinkedIn company pages, GitHub orgs, docs sites, product/protocol/network names used as organizations, or other organization evidence that may lead to canonical company persistence. This skill owns staged review, canonical finalization, and post-approval handoff to `$cache-companies`.
+description: Stage organization-first intake through the company consideration workflow. Use when the input contains company/homepage URLs, LinkedIn company pages, GitHub orgs, docs sites, product/protocol/network names used as organizations, or other organization evidence that may lead to canonical company persistence. This skill owns company-side staged review logic, canonical finalization, and post-approval handoff to `$cache-companies`, while using `$batch` for the generic scratch-task batch loop.
 ---
 
 # Consider Companies
@@ -28,11 +28,12 @@ Rapidly evaluate a user-provided set of company candidates without immediately p
 
 This workflow:
 1. stages new/targeted company-candidate records under `scratch/data/companies/consider/`,
-2. runs a staged version of the canonical company refresh procedure on only that set,
-3. promotes approved companies into canonical company/relationship tracking where appropriate,
-4. finalizes approved canonical company state directly inside this workflow,
-5. refreshes cache semantics via `$cache-companies` only when this run actually persisted canonical company entities,
-6. optionally performs a founder / decision-maker online-search pass only after the user explicitly approves that extra step.
+2. uses `$batch` to manage the per-run scratch task, item iteration, and mandatory staged-review gates,
+3. runs a staged version of the canonical company refresh procedure on only that set,
+4. promotes approved companies into canonical company/relationship tracking where appropriate,
+5. finalizes approved canonical company state directly inside this workflow,
+6. refreshes cache semantics via `$cache-companies` only when this run actually persisted canonical company entities,
+7. optionally performs a founder / decision-maker online-search pass only after the user explicitly approves that extra step.
 
 ## Decision Rule
 
@@ -49,7 +50,7 @@ Use best judgement for ambiguous text:
 
 ## Procedure
 
-1. Create the per-run scratch task and staging dir.
+1. Prepare the staged company-candidate set and hand the per-run scratch-task lifecycle to `$batch`.
    - Record:
      - `Inputs (verbatim)`
      - `Staging dir`
@@ -57,8 +58,15 @@ Use best judgement for ambiguous text:
      - `Staging -> canonical mapping`
      - `Approved canonical actions`
      - `Persisted companies (this run)`
+   - The batch source collection is the staged company-candidate set.
+   - The scratch task for this run remains one batch scratch task for the whole company-consider run.
 2. Stage the explicit company candidates only.
-3. Run the semantic review logic from `tasks/companies/refresh.md` in staged mode, batch by batch.
+3. Use `$batch` for generic iteration behavior:
+   - process only the current batch
+   - always show the staged review batch table
+   - default to waiting for user approval after the table
+   - even explicit no-pause / auto-approve mode must still display the batch table before applying it
+4. Run the semantic review logic from `tasks/companies/refresh.md` in staged mode for the current batch.
    - For already tracked companies: this is a normal company refresh.
    - For new company candidates: use the same official-link research and canonical-model checks, but keep the result staged until approval.
    - Track only candidates that are relevant to our business.
@@ -68,14 +76,14 @@ Use best judgement for ambiguous text:
      - input / staged candidate
      - resolved canonical company target, if any
      - whether the item stays separate, merges into an existing company, or should be removed
-4. Before each staged approval gate, do a best-effort LinkedIn lookup for each reviewed company candidate.
+5. Before each staged approval gate, do a best-effort LinkedIn lookup for each reviewed company candidate.
    - Search for the official website and official company LinkedIn page at minimum.
    - Also record other official surfaces when found (for example GitHub, X/Twitter, docs).
    - Use the resolved company name, even if the original input was a URL.
    - Prefer the official company LinkedIn page when there is a unique defensible match.
    - If online research is inconclusive, continue only with an explicit blocker in the staged review table and in the run's research notes.
-5. Show the staged review batch and stop for approval.
-6. Finalize the approved batch immediately.
+6. Show the staged review batch and stop for approval through `$batch`.
+7. Finalize the approved batch immediately after approval.
    - Resolve canonical company targets by exact match, aliases, or a unique typo-tolerant normalized match.
    - Run a mandatory deduplication check before any canonical write:
      - foundation/lab/operator/company vs protocol/brand/product
@@ -99,10 +107,10 @@ Use best judgement for ambiguous text:
        - if the item exists only in staging, drop the staged item only
        - if the action removes, merges, or renames existing canonical company tracking, require explicit approval and then apply exactly that approved action
    - Record the committed outcomes under `Approved canonical actions`.
-7. If `Persisted companies (this run)` is non-empty, run `$cache-companies` on that set.
+8. If `Persisted companies (this run)` is non-empty, run `$cache-companies` on that set.
    - If this run did not actually persist any canonical company entities, skip the cache step.
-8. Mark the scratch task completed after the final cache-review gate (or immediately in explicit no-pause mode if there is no blocker).
-9. Optional post-completion follow-up:
+9. Mark the batch scratch task completed after the final cache-review gate (or immediately in explicit no-pause mode if there is no blocker).
+10. Optional post-completion follow-up:
    - only if the user explicitly approves this extra step after the required task work is already complete, do a best-effort online search for founders and decision makers of the approved companies
    - this is not part of the required completion path
 
@@ -110,6 +118,7 @@ Use best judgement for ambiguous text:
 
 - This workflow must produce a reviewable batch report before canonical changes.
 - The staged review report shown in chat must always include a table with the current suggestion for every candidate in the batch.
+- This workflow uses `$batch` for the generic scratch-task batch loop; keep company-specific scoring, research, and persistence logic here rather than reimplementing generic batching rules.
 - Every considered company must go through online research before the staged review table is shown. At minimum, attempt official website and official LinkedIn lookup; record attempted-but-inconclusive research.
 - Track only companies/products/protocols/networks that are relevant to our business.
 - When the candidate is a product/protocol/network, choose the canonical target based on the real business surface: keep the product/protocol/network when it is independently actionable, otherwise prefer the owner / umbrella company.

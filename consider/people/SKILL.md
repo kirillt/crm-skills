@@ -1,6 +1,6 @@
 ---
 name: consider-people
-description: Stage person-first intake through the people consideration workflow. Use when the input contains LinkedIn profile URLs, readable person screenshots, LinkedIn HTML/MHTML profile exports, human names, direct user-reported LinkedIn `Added` / `Accepted` events, or direct user-reported sent/received messages involving an untracked person that may lead to canonical persistence.
+description: Stage person-first intake through the people consideration workflow. Use when the input contains LinkedIn profile URLs, readable person screenshots, LinkedIn HTML/MHTML profile exports, human names, direct user-reported LinkedIn `Added` / `Accepted` events, or direct user-reported sent/received messages involving an untracked person that may lead to canonical persistence. This skill owns people-side review and persistence logic while using `$batch` for the generic scratch-task batch loop.
 ---
 
 # Consider People
@@ -33,12 +33,13 @@ High-level question:
 
 This workflow:
 1. stages new/targeted person-candidate records under `scratch/data/people/consider/`,
-2. resolves every active current employer against tracked company data,
-3. runs `$consider-companies` for each unique untracked active current employer before any canonical company/person promotion, in the same run,
-4. evaluates each person's outreach usefulness using the LinkedIn-style buyer/partner/action framework,
-5. promotes approved people into canonical person tracking where appropriate,
-6. runs `$cache-people` only after canonical person persistence in this workflow,
-7. keeps touched tracked companies and people structurally consistent.
+2. uses `$batch` to manage the per-run scratch task, item iteration, and mandatory staged-review gates,
+3. resolves every active current employer against tracked company data,
+4. runs `$consider-companies` for each unique untracked active current employer before any canonical company/person promotion, in the same run,
+5. evaluates each person's outreach usefulness using the LinkedIn-style buyer/partner/action framework,
+6. promotes approved people into canonical person tracking where appropriate,
+7. runs `$cache-people` only after canonical person persistence in this workflow,
+8. keeps touched tracked companies and people structurally consistent.
 
 ## Decision Rule
 
@@ -71,7 +72,7 @@ Use best judgement for ambiguous text:
 
 ## Procedure
 
-1. Create the per-run scratch task and staging dir.
+1. Prepare the staged person-candidate set and hand the per-run scratch-task lifecycle to `$batch`.
    - Record:
      - `Inputs (verbatim)`
      - `Staging dir`
@@ -80,8 +81,15 @@ Use best judgement for ambiguous text:
      - `Staging -> canonical mapping`
      - `Approved canonical actions`
      - `Persisted people (this run)`
+   - The batch source collection is the staged person-candidate set.
+   - The scratch task for this run remains one batch scratch task for the whole people-consider run.
 2. Stage the explicit person candidates only.
-3. Extract profile evidence for each staged person candidate.
+3. Use `$batch` for generic iteration behavior:
+   - process only the current batch
+   - always show the staged review batch table
+   - default to waiting for user approval after the table
+   - even explicit no-pause / auto-approve mode must still display the batch table before applying it
+4. Extract profile evidence for each staged person candidate in the current batch.
    - Use the user-provided links/screenshots/exports first.
    - Do brief online research for every active current employer and any materially relevant prior employers when the profile alone does not give enough business context.
    - Record only source-backed fields:
@@ -95,7 +103,7 @@ Use best judgement for ambiguous text:
    - If a profile is too cropped to identify the role/company reliably, ask for an additional screenshot showing the top card plus the current-role block.
    - If the full name is not visible, do not substitute a title like `COO` into the canonical target; ask for a clearer screenshot instead.
    - Keep screenshots and OCR-like extracts in scratch only, never in canonical entities.
-4. Resolve every active current employer for each staged person candidate.
+5. Resolve every active current employer for each staged person candidate.
    - If an active employer is already tracked:
      - use the canonical `companies/*.json` entity plus `cache/companies/*.json` to inform the person review
      - if that company cache is missing/stale/invalid, block on refreshing it before final person promotion
@@ -119,7 +127,7 @@ Use best judgement for ambiguous text:
      - keep the person staged
      - do not silently create canonical company tracking
      - only persist the person independently if the user explicitly approves doing so without the unresolved employer link(s)
-5. Evaluate outreach usefulness for each staged person candidate.
+6. Evaluate outreach usefulness for each staged person candidate.
    - Classify the track:
      - `buyer` if the person works at a protocol/app/exchange/infra team that plausibly buys security work
      - `partner` if the person works at a security firm, dev shop, recruiter/talent agency, advisory, or similar service provider that could refer/subcontract work
@@ -147,12 +155,12 @@ Use best judgement for ambiguous text:
    - Keep an internal person-relevance judgement for persistence decisions:
      - if the person is not useful to outreach directly but works at at least one relevant active company, use `1%` as the floor
      - if the person is truly `0%`, do **not** persist the profile canonically
-6. Show the staged review batch and stop for approval.
+7. Show the staged review batch and stop for approval through `$batch`.
    - Always render the staged review in chat as a markdown table that includes the current suggestion for every candidate in the batch, even for single-item batches or when surrounding narrative context is also provided.
    - The table must include a `Blockers` column. Use `none` only when there is no unresolved blocker.
    - If `$consider-companies` was invoked as a sub-step for any employer in the batch, the people review table must reflect that dependency explicitly instead of pretending the employer is fully approved already.
    - The table must include a `Company Relevance` column for every candidate.
-7. Commit the approved batch immediately.
+8. Commit the approved batch immediately after approval.
    - `promote`:
      - create/update the canonical person state as approved
      - if a canonical person entity was created or updated, add that person to `Persisted people (this run)`
@@ -162,19 +170,20 @@ Use best judgement for ambiguous text:
    - `remove`:
      - if the item exists only in staging, drop the staged item only
      - if the action removes existing canonical person tracking, require explicit approval and then apply exactly that approved action
-8. If `Persisted people (this run)` is non-empty, run `$cache-people` on that set.
+9. If `Persisted people (this run)` is non-empty, run `$cache-people` on that set.
    - Because people-cache is currently a stub/no-op surface, this handoff must not block successful person persistence.
    - If this run did not actually persist any canonical person entities, skip the cache step.
-9. Validate all touched canonical JSON before finishing.
+10. Validate all touched canonical JSON before finishing.
    - `people/*.json` -> `scripts/validate-people.py`
    - `companies/*.json` when company linkage changed -> `../companies/scripts/validate-companies.py`
    - `cache/companies/*.json` when touched through the company sub-step -> `../../cache/companies/scripts/validate-companies-cache.py`
-10. Mark the scratch task completed after the final approval gate (or immediately in explicit no-pause mode if there is no blocker).
+11. Mark the batch scratch task completed after the final approval gate (or immediately in explicit no-pause mode if there is no blocker).
 
 ## Non-negotiable rules
 
 - This workflow must produce a reviewable batch report before canonical changes.
 - The staged review report shown in chat must always include a table with the current suggestion for every candidate in the batch.
+- This workflow uses `$batch` for the generic scratch-task batch loop; keep people-specific evaluation, company-resolution logic, and persistence logic here rather than reimplementing generic batching rules.
 - Every considered person must be grounded in explicit profile evidence; do not guess missing current employer/role details.
 - Do brief online research for every active current employer and any materially relevant prior employers when needed to evaluate the candidate cleanly.
 - Every untracked active current employer must go through `$consider-companies` before canonical company/person promotion.
