@@ -43,6 +43,13 @@ def write_message(by_date_root, by_id_root, channel_id, message):
 
     dated_dir = by_date_root / date_str / channel_id
     channel_dir = by_id_root / channel_id / date_str
+    dated_file = dated_dir / filename
+    channel_file = channel_dir / filename
+    is_new = not channel_file.exists()
+
+    if dated_file.exists() and channel_file.exists():
+        return False
+
     dated_dir.mkdir(parents=True, exist_ok=True)
     channel_dir.mkdir(parents=True, exist_ok=True)
 
@@ -53,45 +60,38 @@ def write_message(by_date_root, by_id_root, channel_id, message):
         "timestamp": utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     encoded = json.dumps(payload, ensure_ascii=False, indent=2)
-    for out_dir in (dated_dir, channel_dir):
-        (out_dir / filename).write_text(encoded, encoding="utf-8")
-
-
-def iter_message_files(root):
-    if not root.exists():
-        return
-    for date_dir in root.iterdir():
-        if not date_dir.is_dir():
-            continue
-        for entry in date_dir.iterdir():
-            if entry.is_file():
-                yield entry
+    dated_file.write_text(encoded, encoding="utf-8")
+    channel_file.write_text(encoded, encoding="utf-8")
+    return is_new
 
 
 def find_last_message_id(by_id_root, channel_id):
-    best = 0
     pattern = re.compile(rf"-{re.escape(channel_id)}-(\d+)\.json$")
-
-    for file_path in iter_message_files(by_id_root / channel_id):
-        match = pattern.search(file_path.name)
-        if match:
-            best = max(best, int(match.group(1)))
-    return best
-
-
-def cached_message_count(by_id_root, channel_id):
-    pattern = re.compile(rf"^\d{{8}}T\d{{6}}Z-{re.escape(channel_id)}-(\d+)\.json$")
-    count = 0
     channel_dir = by_id_root / channel_id
     if not channel_dir.exists():
         return 0
-    for date_dir in channel_dir.iterdir():
-        if not date_dir.is_dir():
-            continue
+
+    for date_dir in sorted((entry for entry in channel_dir.iterdir() if entry.is_dir()), reverse=True):
+        best = 0
         for entry in date_dir.iterdir():
-            if entry.is_file() and pattern.match(entry.name):
-                count += 1
-    return count
+            if not entry.is_file():
+                continue
+            match = pattern.search(entry.name)
+            if match:
+                best = max(best, int(match.group(1)))
+        if best:
+            return best
+    return 0
+
+
+def has_cached_messages(by_id_root, channel_id):
+    channel_dir = by_id_root / channel_id
+    if not channel_dir.exists():
+        return False
+    for date_dir in channel_dir.iterdir():
+        if date_dir.is_dir() and any(entry.is_file() for entry in date_dir.iterdir()):
+            return True
+    return False
 
 
 async def cutoff_offset_id(client, entity, since_date):
@@ -123,6 +123,7 @@ async def sync_messages(
     until_date=None,
     all_history=False,
     full_conversation=False,
+    context_messages=None,
     skip_cached=False,
     report_new_files=False,
 ):
@@ -134,8 +135,7 @@ async def sync_messages(
         print(f"{reference}: skipped because target ID {channel_id} is in auth/telegram.skip")
         return {"reference": reference, "channel_id": channel_id, "name": name, "status": "skipped", "written": 0}
 
-    before = cached_message_count(by_id_root, channel_id) if report_new_files else None
-    if skip_cached and (before if before is not None else cached_message_count(by_id_root, channel_id)) > 0:
+    if skip_cached and has_cached_messages(by_id_root, channel_id):
         print(f"{name}: already cached; skipping Telegram sync")
         payload = {
             "reference": reference,
@@ -145,7 +145,63 @@ async def sync_messages(
             "iterated": 0,
         }
         if report_new_files:
-            payload.update({"before": before, "after": before, "written": 0})
+            payload.update({"written": 0})
+        return payload
+
+    if context_messages:
+        since_dt = parse_utc_date(since_date)
+        until_dt_exclusive = inclusive_utc_day_end(until_date)
+        print(f"{name}: context mode, up to {context_messages} messages ending at the latest in-window message")
+
+        anchor = None
+        async for message in client.iter_messages(entity, offset_date=until_dt_exclusive):
+            message_dt = message.date.astimezone(timezone.utc)
+            if message_dt < since_dt:
+                break
+            anchor = message
+            break
+
+        if anchor is None:
+            print(f"{name}: no messages inside selected window")
+            payload = {
+                "reference": reference,
+                "channel_id": channel_id,
+                "name": name,
+                "status": "no_window_messages",
+                "iterated": 0,
+            }
+            if report_new_files:
+                payload.update({"written": 0})
+            return payload
+
+        messages = [anchor]
+        if context_messages > 1:
+            async for message in client.iter_messages(entity, offset_id=anchor.id, limit=context_messages - 1):
+                messages.append(message)
+
+        written = 0
+        for message in reversed(messages):
+            if write_message(by_date_root, by_id_root, channel_id, message):
+                written += 1
+
+        processed = len(messages)
+        ordered_messages = sorted(messages, key=lambda item: item.id)
+        payload = {
+            "reference": reference,
+            "channel_id": channel_id,
+            "name": name,
+            "status": "done",
+            "iterated": processed,
+            "context_messages": context_messages,
+            "anchor_message_id": anchor.id,
+            "anchor_timestamp": anchor.date.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "context_message_ids": [message.id for message in ordered_messages],
+        }
+        if report_new_files:
+            print(f"{reference}: done, {processed} context messages iterated, {written} new files visible under cache/telegram/by_id/{channel_id}/")
+            payload.update({"written": written})
+        else:
+            print(f"{name}: done, {processed} context message(s)")
         return payload
 
     full_sync = all_history or full_conversation
@@ -173,6 +229,7 @@ async def sync_messages(
         print(f"{name}: resuming from message {offset_id}")
 
     processed = 0
+    written = 0
     current_offset = offset_id
 
     while True:
@@ -183,11 +240,12 @@ async def sync_messages(
                     continue
                 if until_dt_exclusive is not None and message_dt >= until_dt_exclusive:
                     break
-                write_message(by_date_root, by_id_root, channel_id, message)
+                if write_message(by_date_root, by_id_root, channel_id, message):
+                    written += 1
                 processed += 1
                 current_offset = message.id
                 if processed % 100 == 0:
-                    print(f"{reference}: {processed} messages written...")
+                    print(f"{reference}: {processed} messages processed...")
             break
         except FloodWaitError as err:
             print(f"{reference}: rate-limited, waiting {err.seconds}s...")
@@ -209,10 +267,8 @@ async def sync_messages(
         print(f"{name}: no new messages")
 
     if report_new_files:
-        after = cached_message_count(by_id_root, channel_id)
-        written = max(after - before, 0)
         print(f"{reference}: done, {processed} messages iterated, {written} new files visible under cache/telegram/by_id/{channel_id}/")
-        payload.update({"before": before, "after": after, "written": written})
+        payload.update({"written": written})
     else:
         print(f"{name}: done, {processed} message(s)")
 

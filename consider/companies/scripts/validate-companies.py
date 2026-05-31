@@ -276,6 +276,8 @@ def validate_company(path, company_id, data, all_companies, errors, warnings):
             err(errors, path, f"`rubrics` contains unknown values: {', '.join(sorted(set(invalid_rubrics)))}")
         if len(set(rubrics)) != len(rubrics):
             err(errors, path, "`rubrics` must not contain duplicates")
+        if "solidity" in rubrics and "evm" not in rubrics:
+            err(errors, path, "`rubrics` containing `solidity` must also contain `evm`")
 
     transitive_rubrics = data.get("transitive_rubrics")
     if transitive_rubrics is not None:

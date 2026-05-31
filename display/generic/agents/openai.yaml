@@ -1,0 +1,4 @@
+interface:
+  display_name: "Display"
+  short_description: "Dispatch presentation-only entity views"
+  default_prompt: "Use $display only to route company/person/table display requests into $display-companies, $display-people, or $display-table; never mutate canonical data."

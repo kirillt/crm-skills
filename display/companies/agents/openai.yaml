@@ -1,0 +1,4 @@
+interface:
+  display_name: "Display Companies"
+  short_description: "Render focused company tables"
+  default_prompt: "Use $display-companies for company display requests; append native \\people\\list in single-company mode and route the final table through $display-table."

@@ -1,4 +1,4 @@
 interface:
   display_name: "Cache Companies"
   short_description: "Refresh company cache"
-  default_prompt: "Use $cache-companies to create or refresh cache/companies/*.json for approved or already-tracked companies, including missing-only runs with --check."
+  default_prompt: "Use $cache-companies to create or refresh cache/companies/*.json for approved or already-tracked companies, including missing/invalid repair runs, explicit company subsets, and full regeneration."

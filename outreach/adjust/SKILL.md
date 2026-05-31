@@ -1,6 +1,6 @@
 ---
 name: outreach-adjust
-description: Refine the stored outreach style based on user-provided sent messages and prior drafts. Use when the user explicitly invokes `$outreach-adjust`, or when the user reports having sent outreach messages. Compare user wording against prior drafts, summarize the strongest improvements, and update `state/outreach/style.json` while keeping the style compact and distinctive.
+description: Refine the stored outreach style based on user-provided sent messages and prior drafts. Use when the user explicitly invokes `$outreach-adjust`, asks to tune outreach style, or when `$outreach-draft` invokes it after sent-message tracking. Compare user wording against prior drafts, summarize the strongest improvements, and update `state/outreach/style.json` while keeping the style compact and distinctive.
 ---
 
 # Outreach Adjust
@@ -16,10 +16,10 @@ It reads the current state from `state/outreach/style.json`, compares real user 
 
 Use this skill when:
 - the user explicitly invokes `$outreach-adjust`
-- the user reports that they sent one or more outreach messages
 - the user asks to refine, tune, learn, or update the outreach style
+- `$outreach-draft` has just tracked one or more actually sent outreach messages
 
-If the user reports sent messages, do not let this skill replace or bypass the normal persistence of those communications. Communication tracking still has to happen through the usual repo workflows.
+If the user reports sent messages directly and they have not yet been tracked canonically, route through `$outreach-draft` first. This skill must not replace or bypass communication persistence.
 
 ## Inputs
 

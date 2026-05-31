@@ -33,6 +33,11 @@ Examples:
 
 Regenerate semantic cache JSONs under `cache/companies/*.json` from canonical `companies/*.json`.
 
+When this workflow scores company cache fields, use the about-us policy stack instead of restating local scoring rules:
+- `about-us/intro.md` for positioning and pricing context
+- `about-us/leads-qualification.md` for relevance/importance/chance/temperature semantics
+- `about-us/rubrics.py` for canonical rubric IDs, weights, and deterministic scoring helpers
+
 Modes:
 - default with empty input: check all companies for cache existence and valid schema; regenerate any missing or invalid cache entries
 - `--regenerate`: erase all company cache JSONs and regenerate them from scratch for the full canonical company set
@@ -64,7 +69,7 @@ Modes:
 - Do not infer semantic cache fields with Python heuristics.
 - Do not default cache metrics. If you cannot calculate them from evidence plus best judgement with a stated basis, block the cache write.
 - Record the canonical relevance terms in company `rubrics` / optional `transitive_rubrics` and ensure the deterministic score from `about-us/rubrics.py`, interpreted through `about-us/leads-qualification.md`, matches cache `relevance`.
-- `chance_next` must be less than or equal to `chance_6m` unless explicitly justified.
+- Keep chance metrics consistent with `about-us/leads-qualification.md`; structural validation is handled by `scripts/validate-companies-cache.py`.
 - When concluding “no change” on cache-facing metrics, state which inputs were examined and why they do not move the score.
 - Validate touched canonical company files with `../../consider/companies/scripts/validate-companies.py` when canon changed.
 - Validate touched cache files with `scripts/validate-companies-cache.py`.
@@ -98,6 +103,7 @@ When explicit company arguments are provided:
    - resolve the target company set
    - queue regeneration for every resolved target company regardless of existing cache presence
 5. For each queued company in the batch:
+   - read `about-us/intro.md`
    - read `about-us/leads-qualification.md`
    - read `about-us/rubrics.py`
    - read canonical `companies/<id>.json`
@@ -121,7 +127,7 @@ When explicit company arguments are provided:
    - then derive cache from the corrected canon
 7. Validate touched canonical company files when canon changed.
 8. Validate touched cache files.
-9. After each batch, stop and show a reviewable table.
+9. After each batch, stop and show a reviewable table through `$display-table`.
 
 ## Batch report
 
@@ -137,4 +143,4 @@ Use a table with:
 
 ## Output
 
-When you use this skill, execute the cache batch and show the review table instead of answering with an informal plan.
+When you use this skill, execute the cache batch and pass the review table to `$display-table` instead of answering with an informal plan.

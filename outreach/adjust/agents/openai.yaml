@@ -1,4 +1,4 @@
 interface:
   display_name: "Outreach Adjust"
   short_description: "Refine stored outreach style"
-  default_prompt: "Use $outreach-adjust when the user shares sent outreach messages or explicitly wants to tune outreach voice, compare them against prior drafts when available, and update state/outreach/style.json while keeping up to 10 rules and 20 distinct user-provided examples."
+  default_prompt: "Use $outreach-adjust when explicitly invoked, when the user wants to tune outreach voice, or after $outreach-draft tracks sent outreach. Compare actual sent messages against prior drafts when available and update state/outreach/style.json compactly."

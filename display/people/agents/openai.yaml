@@ -1,0 +1,4 @@
+interface:
+  display_name: "Display People"
+  short_description: "Render people comparison tables"
+  default_prompt: "Use $display-people to assemble a concise people table, then route it through $display-table; never persist data."

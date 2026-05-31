@@ -34,12 +34,14 @@ If the intake is already clearly company-side, use `$consider-companies` directl
    - run `$consider-people` for the people candidates
    - run `$consider-companies` for the explicit company candidates
    - avoid duplicate company creation if a person’s current employer is already present explicitly in the company bucket
+   - preserve the distinction between canonical company tracking and factual person affiliation; a company that is not approved for `companies/*.json` can still appear as a plain string in a person record
 7. Preserve the user’s original evidence sources so the downstream skill can use them.
 
 ## Guardrails
 
 - Never create a brand-new `people/*.json` or `companies/*.json` directly from this skill.
 - Never keep detailed people/company intake rules here when they belong in the sibling skills.
+- When company and people decisions interact, do not treat a rejected company candidate as proof that the person cannot list that employer. Let `$consider-people` store source-backed but untracked employers as plain strings.
 - If an authorized scratch task is already in progress and its rules explicitly allow persistence, follow that task instead of re-routing through this skill.
 - Do not edit `aliases.json` unless the user explicitly asked for alias work.
 

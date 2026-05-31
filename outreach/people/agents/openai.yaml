@@ -1,0 +1,4 @@
+interface:
+  display_name: "Outreach People"
+  short_description: "Rank outreach targets by person"
+  default_prompt: "Use $outreach-people when the user wants to rank known people as outreach targets or compare sales/partner angles. Output a compact table with Role, Person, Worthiness of outreach, Angle, and Project chance; do not draft messages or mutate canonical data."

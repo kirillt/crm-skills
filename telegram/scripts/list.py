@@ -5,6 +5,9 @@ Auxiliary Telegram dialog listing and discovery tool.
 
 import argparse
 import asyncio
+import json
+import sys
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -23,10 +26,11 @@ LOCK_FILE = Path("tmp") / "telegram" / "session.lock"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="List Telegram dialogs for discovery and review.")
-    parser.add_argument("mode", choices=["broadcast", "dm", "groups", "large", "small"], help="Dialog category to list")
+    parser.add_argument("mode", choices=["broadcast", "dm", "groups", "large-groups", "conversations"], help="Dialog category to list")
     parser.add_argument("--since", help="Include only dialogs whose latest visible message is on or after this UTC date (YYYY-MM-DD)")
     parser.add_argument("--until", help="Include only dialogs whose latest visible message within the window is on or before this UTC date (YYYY-MM-DD)")
     parser.add_argument("--local-time", action="store_true", help="Display timestamps in the local timezone of the machine running the script")
+    parser.add_argument("--json", action="store_true", help="Emit structured JSON rows instead of human-readable text")
     args = parser.parse_args()
     if args.since:
         datetime.strptime(args.since, "%Y-%m-%d")
@@ -106,19 +110,57 @@ async def latest_message_on_or_before(client, entity, until=None):
     return None
 
 
-async def list_dialogs(client, mode, skip_ids, small_group_max_participants, since=None, until=None, local_time=False):
+async def list_dialogs(client, mode, skip_ids, conversation_group_max_participants, since=None, until=None, local_time=False):
     if mode == "broadcast":
         header = "Broadcast channels"
     elif mode == "groups":
         header = "Groups"
-    elif mode == "large":
-        header = f"Large chats and channels (groups >= {small_group_max_participants})"
-    elif mode == "small":
-        header = f"Small groups and direct chats (groups < {small_group_max_participants})"
+    elif mode == "large-groups":
+        header = f"Large groups and broadcast channels (groups >= {conversation_group_max_participants})"
+    elif mode == "conversations":
+        header = f"Conversations (direct messages and groups < {conversation_group_max_participants})"
     else:
         header = "Direct chats"
     print(f"{header}:\n")
 
+    rows = await collect_dialogs(client, mode, skip_ids, conversation_group_max_participants, since=since, until=until)
+
+    for kind, participant_count, last_dt, dialog in rows:
+        entity = dialog.entity
+        if kind == "groups":
+            type_label = "[GROUP]"
+            kind_label = "Group"
+        elif kind == "broadcast":
+            type_label = "[BROADCAST]"
+            kind_label = "Broadcast"
+        else:
+            type_label = "[DM]"
+            kind_label = "Direct"
+
+        uname = getattr(entity, "username", None)
+        uname_display = f"@{uname}" if uname else "(no username)"
+        last_display = format_display_dt(last_dt, local_time=local_time)
+        extra = f"  participants: {participant_count}" if kind == "groups" and participant_count is not None else ""
+        print(f"  {type_label} {dialog.title}  ID: {dialog.id}  {kind_label}  {uname_display}  last: {last_display}{extra}")
+
+    print(f"\n{len(rows)} dialog(s) found.")
+
+
+def dialog_row(kind, participant_count, last_dt, dialog, local_time=False):
+    entity = dialog.entity
+    username = getattr(entity, "username", None)
+    return {
+        "chat_id": str(dialog.id),
+        "kind": kind,
+        "title": dialog.title,
+        "username": f"@{username}" if username else "",
+        "participant_count": participant_count,
+        "last_message_at": format_display_dt(last_dt, local_time=local_time) if last_dt else "",
+        "cache_path": f"cache/telegram/by_id/{dialog.id}/",
+    }
+
+
+async def collect_dialogs(client, mode, skip_ids, conversation_group_max_participants, since=None, until=None):
     rows = []
     async for dialog in client.iter_dialogs():
         entity = dialog.entity
@@ -132,19 +174,19 @@ async def list_dialogs(client, mode, skip_ids, small_group_max_participants, sin
             continue
 
         participant_count = None
-        if mode == "small":
+        if mode == "conversations":
             if kind not in {"dm", "groups"}:
                 continue
             if kind == "groups":
                 participant_count = await get_participant_count(client, entity)
-                if participant_count is None or participant_count >= small_group_max_participants:
+                if participant_count is None or participant_count >= conversation_group_max_participants:
                     continue
-        elif mode == "large":
+        elif mode == "large-groups":
             if kind not in {"broadcast", "groups"}:
                 continue
             if kind == "groups":
                 participant_count = await get_participant_count(client, entity)
-                if participant_count is not None and participant_count < small_group_max_participants:
+                if participant_count is not None and participant_count < conversation_group_max_participants:
                     continue
         elif kind != mode:
             continue
@@ -169,26 +211,7 @@ async def list_dialogs(client, mode, skip_ids, small_group_max_participants, sin
         rows.append((kind, participant_count, last_dt, dialog))
 
     rows.sort(key=lambda row: (-(row[2].timestamp()) if row[2] is not None else float("inf")))
-
-    for kind, participant_count, last_dt, dialog in rows:
-        entity = dialog.entity
-        if kind == "groups":
-            type_label = "[GROUP]"
-            kind_label = "Group"
-        elif kind == "broadcast":
-            type_label = "[BROADCAST]"
-            kind_label = "Broadcast"
-        else:
-            type_label = "[DM]"
-            kind_label = "Direct"
-
-        uname = getattr(entity, "username", None)
-        uname_display = f"@{uname}" if uname else "(no username)"
-        last_display = format_display_dt(last_dt, local_time=local_time)
-        extra = f"  participants: {participant_count}" if kind == "groups" and participant_count is not None else ""
-        print(f"  {type_label} {dialog.title}  ID: {dialog.id}  {kind_label}  {uname_display}  last: {last_display}{extra}")
-
-    print(f"\n{len(rows)} dialog(s) found.")
+    return rows
 
 
 async def main():
@@ -198,20 +221,38 @@ async def main():
     since = datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=timezone.utc) if args.since else None
     until = datetime.strptime(args.until, "%Y-%m-%d").replace(tzinfo=timezone.utc) if args.until else None
 
-    with session_lock(LOCK_FILE):
-        client = await ensure_authorized_client(SESSION_FILE)
-        try:
-            await list_dialogs(
-                client,
-                args.mode,
-                skip_ids,
-                config["small_group_max_participants"],
-                since=since,
-                until=until,
-                local_time=args.local_time,
-            )
-        finally:
-            await client.disconnect()
+    if args.json:
+        with redirect_stdout(sys.stderr):
+            with session_lock(LOCK_FILE):
+                client = await ensure_authorized_client(SESSION_FILE)
+                try:
+                    rows = await collect_dialogs(
+                        client,
+                        args.mode,
+                        skip_ids,
+                        config["conversation_group_max_participants"],
+                        since=since,
+                        until=until,
+                    )
+                finally:
+                    await client.disconnect()
+        payload = [dialog_row(*row, local_time=args.local_time) for row in rows]
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        with session_lock(LOCK_FILE):
+            client = await ensure_authorized_client(SESSION_FILE)
+            try:
+                await list_dialogs(
+                    client,
+                    args.mode,
+                    skip_ids,
+                    config["conversation_group_max_participants"],
+                    since=since,
+                    until=until,
+                    local_time=args.local_time,
+                )
+            finally:
+                await client.disconnect()
 
 
 if __name__ == "__main__":

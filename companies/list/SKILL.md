@@ -17,8 +17,8 @@ This skill operates on:
 - `companies/*.json`
 - `aliases.json`
 - `about-us/rubrics.py`
-- `tools/companies-query.py`
-- `tools/companies-resolve.py`
+- `.agents/skills/companies/list/scripts/companies-query.py`
+- `.agents/skills/companies/list/scripts/companies-resolve.py`
 
 ## When To Use
 
@@ -28,7 +28,7 @@ Use this skill when:
 - a company-facing task receives one `<...>` item and must decide whether it is a subset expression or a freeform chat-context selector
 
 Typical callers:
-- `\companies\display`
+- `$display-companies`
 - `\companies\refresh`
 - `\leads\top`
 
@@ -58,14 +58,14 @@ This skill supports three input kinds:
 ### Explicit company selectors
 
 1. Resolve semicolon-separated company names / ids / aliases into canonical company ids.
-2. Use deterministic explicit-list resolution via `tools/companies-resolve.py`.
+2. Use deterministic explicit-list resolution via `.agents/skills/companies/list/scripts/companies-resolve.py`.
 3. Deduplicate while preserving deterministic order.
 
 ### Canonical subset expressions
 
 1. If the user already provided a strict canonical rubric expression, keep it as-is.
 2. If the user used loose human wording, resolve it into canonical rubric ids from `about-us/rubrics.py`.
-3. Then expand it deterministically with `tools/companies-query.py`.
+3. Then expand it deterministically with `.agents/skills/companies/list/scripts/companies-query.py`.
 
 Examples:
 - `security vendors` -> `<web3_security/security_vendor>`

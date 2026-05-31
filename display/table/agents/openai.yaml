@@ -1,0 +1,4 @@
+interface:
+  display_name: "Display Table"
+  short_description: "Route Markdown tables to chat or viewer"
+  default_prompt: "Use $display-table to present a Markdown table from text or file, choosing chat for small tables and an external viewer for larger ones."

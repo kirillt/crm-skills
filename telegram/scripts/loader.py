@@ -15,9 +15,8 @@ SKIP_FILE = Path("auth") / "telegram.skip"
 TELEGRAM_CONFIG_FILE = Path("config") / "telegram" / "main.json"
 
 DEFAULT_TELEGRAM_CONFIG = {
-    "discover-batch-size": 15,
-    "persist-batch-size": 15,
-    "small_group_max_participants": 15,
+    "batch-size": 15,
+    "conversation_group_max_participants": 15,
     "max_retries": 5,
     "initial_backoff_s": 2,
 }
