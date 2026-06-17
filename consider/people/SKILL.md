@@ -117,6 +117,9 @@ Use best judgement for ambiguous text:
      - invoke `$consider-companies` once per unique untracked active employer
      - do not create canonical company or cache files directly from this workflow
    - Wait for the company-consider outcome for every active employer before promoting people tied to that employer.
+   - When company-consider approves a new canonical company, require its plain-affiliation reconciliation pass to complete before person promotion:
+     - existing current `people/*.json` plain-name affiliations for that company must be converted to `{company_id}` and reflected in company `staff`
+     - existing past-career plain-name affiliations for that company must be converted to `{company_id}` and reflected in cache `former_staff_routes` when applicable
    - Surface every same-run company-consider result in the people review table under `Company Relevance`, including:
      - the employer name
      - the staged company relevance
@@ -206,6 +209,7 @@ Use best judgement for ambiguous text:
 - Every considered person must be grounded in explicit profile evidence; do not guess missing current employer/role details.
 - Do brief online research for every active current employer and any materially relevant prior employers when needed to evaluate the candidate cleanly.
 - Every active current employer must go through a formal same-run `$consider-companies` outcome before canonical company/person promotion, even when the employer is already tracked or is not approved for canonical company tracking.
+- If any same-run company approval creates a new canonical company, do not promote the people batch until the company-side plain-affiliation reconciliation has scanned existing people and reported current staff / former-staff route changes.
 - Canonical person records may contain multiple current affiliations in `companies[]`; concurrent roles are valid and should be preserved when source-backed.
 - Use a canonical `{company_id}` ref only for tracked or approved companies; use a plain company-name string for a real active employer that was considered but not approved for canonical company tracking.
 - Use tracked company cache data whenever the employer already exists canonically.

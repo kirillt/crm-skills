@@ -41,6 +41,10 @@ Use this skill for:
   - If one person belongs to more than one displayed company, render `Name @ Company A / Company B`.
 - Deduplicate people across the displayed subset.
 - Do not show people whose only relationship to the displayed subset is a non-current past employer.
+- Also scan `people/*.json` for exact plain-text matches to the displayed company name in `companies[*].company` and `past_career[*].company`.
+  - Current plain-text matches are display sync gaps; do not silently omit them from the people/status table.
+  - Past-career plain-text matches are former-route sync gaps; report them separately instead of showing them as current people.
+  - This display skill must not perform the canonical migration itself unless another rule explicitly permits that specific mutation; route the fix through the relevant consideration/cache workflow.
 
 ## People Status Table
 
@@ -107,6 +111,7 @@ This skill owns benchmark-group (`RLNT`) display semantics together with its ren
 3. Build the people/status table for the displayed subset.
    - Parse each displayed `companies/<id>.json` `"staff"` list.
    - Scan `people/*.json` for `"companies[*].company"` references to displayed companies.
+   - Scan `people/*.json` for exact plain-text company-name matches to the displayed company name in `companies[*].company` and `past_career[*].company`; surface matches as sync gaps instead of silently dropping them.
    - Union and deduplicate candidates.
    - Read each involved canonical person record and the displayed company records' `"comms.events"`.
    - Check bidirectional communication sync for company-relevant 1:1 interactions.

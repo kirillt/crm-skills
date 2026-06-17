@@ -1,0 +1,4 @@
+interface:
+  display_name: "Export"
+  short_description: "Package lead handovers for BD/Sales"
+  default_prompt: "Use $export to package selected leads into a BD/Sales handover ZIP under the top-level export folder."

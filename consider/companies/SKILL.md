@@ -106,6 +106,11 @@ Use best judgement for ambiguous text:
      - what they ship / the practical business surface
      - GitHub org/repo when applicable
      - security intake surface when available
+   - Before finalizing a `promote` outcome for a company that did not previously exist canonically, run a plain-affiliation reconciliation pass:
+     - scan `people/*.json` for exact plain-text matches to the approved company display name and obvious approved spelling variants in both `companies[*].company` and `past_career[*].company`
+     - for current-company matches, convert the person record to the canonical `{company_id}` reference and add the tracked person to company `staff` with the best source-backed role code
+     - for past-career matches, convert the person record to the canonical `{company_id}` reference and prepare cache `former_staff_routes` entries after cache creation/refresh
+     - include these reconciled people in the run's validator set and final summary
    - Commit approved outcomes:
      - `promote`:
        - create/update canonical company state as approved
@@ -142,6 +147,7 @@ Use best judgement for ambiguous text:
 - All unresolved blockers must be shown in the staged review table's `Blockers` column. Do not present a blocked candidate as unqualified `promote`.
 - Structural/destructive changes require explicit user approval unless explicit no-pause mode was requested and the batch is unambiguous.
 - Before recording a new company entity canonically, do best-effort online research for official primary surfaces and persist every clear official link found. At minimum, attempt official website and official LinkedIn lookup.
+- Before recording a new company entity canonically, reconcile existing plain-text people affiliations for the approved company name; do not leave known current staff or former-staff routes stranded under the old plain string.
 - New canonical company creation is allowed only through this workflow’s explicit approval gate; do not bypass it from sibling skills or tasks.
 - This workflow owns canonical finalization for approved companies; do not route approved-company persistence through a separate register template.
 - Use `$cache-companies` only when this workflow actually persisted canonical company entities.
